@@ -160,6 +160,40 @@ def search_books(db:Session,title:str=None,author:str=None):
         query=query.filter(models.Book.author.ilike(f"%{author}%"))
     return query.all()
 
+def create_book(db:Session,book:schemas.BookCreate):
+    new_book=models.Book(**book.dict())
+    db.add(new_book)
+    db.commit()
+    db.refresh(new_book)
+    return new_book
+
+def update_book(db:Session,book:schemas.BookUpdate):
+    db_book=get_book_by_id(db,book_id)
+    if db_book:
+        db_book.price=book.price
+        db_book.stock=book.stock
+        db.commit()
+        db.refresh(db_book)
+    return db_book
+    
+def delete_book(db:Session,book_id:int):
+    db_book=get_book_by_id(db,book_id)
+    if db_book:
+        db.delete(db_book)
+        db.commit()
+    return db_book
+
+def create_publisher(db:Session,publisher:schemas.PublisherCreate):
+    db_publisher=models.Publisher(**publisher.dict())
+    db.add(db_publisher)
+    db.commit()
+    db.refresh(db_publisher)
+    return db_publisher
+
+def get_all_publishers(db:Session):
+    return db.query(models.Publisher).all()
+def get_publisher_by_id(db:Session,publisher_id:int):
+    return db.query(models.Publisher).filter(models.Publisher.id==publisher_id).first()
 def create_publisher(db:Session,publisher:schemas.PublisherCreate):
     db_publisher=models.Publisher(**publisher.dict())
     db.add(db_publisher)
@@ -199,7 +233,19 @@ def get_db():
     finally:
         db.close()
 
+@app.put("/books/",response_model=schemas.Book)
+def update_book(book_id:int,book:schemas.BookUpdate,db:Session=Depends(get_db)):
+    db_book=crud.update_book(db,book_id,book)
+    if not db_book:
+        raise HTTPException(status_code=404,detail="Book not found")
+    return db_book
 
+@app.delete("/books/{book_id}")
+def delete_book(book_id:int,db:Session=Depends(get_db)):
+    db_book=crud.delete_book(db,book_id)
+    if not db_book:
+        raise HTTPException(status_code=404,detail="Book not found")
+    return {"message":f"Book with Id {book_id} deleted successfully"}
 @app.get("/books/search-books", response_model=list[schemas.Book])
 def search_books(title: str = None, author: str = None, db: Session = Depends(get_db)):
     return crud.search_books(db, title, author)
